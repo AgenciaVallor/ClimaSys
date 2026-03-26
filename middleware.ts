@@ -27,13 +27,13 @@ export async function middleware(req: NextRequest) {
   // Verificar se o usuário já completou o onboarding (se tem um perfil e uma empresa)
   if (session && req.nextUrl.pathname !== '/onboarding') {
     const { data: profile } = await supabase
-      .from('profiles')
-      .select('company_id')
+      .from('perfis')
+      .select('empresa_id')
       .eq('id', session.user.id)
       .single()
 
-    // Se o perfil não existe ou não tem company_id, redirecione para onboarding
-    if (!profile || !profile.company_id) {
+    // Se o perfil não existe ou não tem empresa_id, redirecione para onboarding
+    if (!profile || !profile.empresa_id) {
        // Permite acessar a API ou assets sem redirecionar em loop
        if (!req.nextUrl.pathname.startsWith('/api') && 
            !req.nextUrl.pathname.startsWith('/_next') &&

@@ -65,24 +65,24 @@ export default function Onboarding() {
       .single();
 
     if (companyError) {
-      setError('Erro ao criar empresa. Nome pode já estar em uso.');
+      setError(`Erro ao criar empresa: ${companyError.message}`);
       setLoading(false);
       return;
     }
 
-    // 2. Criar perfil de admin
+    // 2. Criar ou Atualizar perfil de admin (Upsert)
     const { error: profileError } = await supabase
       .from('perfis')
-      .insert([{
+      .upsert({
         id: session.user.id,
         empresa_id: empresa.id,
         nome: userName,
         role: 'admin',
         telefone: phone
-      }]);
+      });
 
     if (profileError) {
-      setError('Erro ao criar perfil de usuário.');
+      setError(`Erro ao criar perfil: ${profileError.message}`);
       setLoading(false);
       return;
     }
