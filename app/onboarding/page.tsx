@@ -24,13 +24,13 @@ export default function Onboarding() {
       }
 
       // Verifica se já tem empresa
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('company_id')
+      const { data: perfil } = await supabase
+        .from('perfis')
+        .select('empresa_id')
         .eq('id', session.user.id)
         .single();
         
-      if (profile?.company_id) {
+      if (perfil?.empresa_id) {
         // Já tem onboarding concluído
         router.push('/dashboard');
       }
@@ -58,9 +58,9 @@ export default function Onboarding() {
 
     // 1. Criar empresa
     const slug = slugify(companyName) || Date.now().toString();
-    const { data: company, error: companyError } = await supabase
-      .from('companies')
-      .insert([{ name: companyName, slug }])
+    const { data: empresa, error: companyError } = await supabase
+      .from('empresas')
+      .insert([{ nome: companyName, slug }])
       .select()
       .single();
 
@@ -72,13 +72,13 @@ export default function Onboarding() {
 
     // 2. Criar perfil de admin
     const { error: profileError } = await supabase
-      .from('profiles')
+      .from('perfis')
       .insert([{
         id: session.user.id,
-        company_id: company.id,
-        name: userName,
+        empresa_id: empresa.id,
+        nome: userName,
         role: 'admin',
-        phone: phone
+        telefone: phone
       }]);
 
     if (profileError) {
@@ -115,7 +115,7 @@ export default function Onboarding() {
                 onChange={(e) => setCompanyName(e.target.value)}
                 required
                 placeholder="Ex: Ar Frio Climatização"
-                className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-slate-400"
               />
             </div>
           </div>
@@ -129,7 +129,7 @@ export default function Onboarding() {
                 value={userName}
                 onChange={(e) => setUserName(e.target.value)}
                 required
-                className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-slate-400"
               />
             </div>
             <div>
@@ -139,7 +139,7 @@ export default function Onboarding() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
-                className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-slate-400"
               />
             </div>
           </div>
