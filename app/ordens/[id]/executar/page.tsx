@@ -5,12 +5,13 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, CheckCircle2, FileImage } from 'lucide-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { SignaturePad } from '@/components/signature/canvas';
 import { createClient } from '@/lib/supabase/client';
 
 export default function ExecucaoOS({ params }: { params: { id: string } }) {
   const supabase = createClient();
+  const router = useRouter();
   const [os, setOs] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(1); // 1 = Review, 2 = Executing, 3 = Closure
@@ -26,7 +27,8 @@ export default function ExecucaoOS({ params }: { params: { id: string } }) {
       
       if (data) {
         setOs(data);
-        setAmount(data.valor_estimado?.toString() || '0.00');
+        setAmount(data.valor_estimado?.toString() || '');
+        setTipoServico(data.tipo_servico || '');
         if (data.status === 'em_andamento') setStep(2);
         if (data.status === 'concluido') setStep(3);
       }
@@ -37,15 +39,26 @@ export default function ExecucaoOS({ params }: { params: { id: string } }) {
 
 
   // Form final closure state
-  const [amount, setAmount] = useState('350.00');
+  const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [tipoServico, setTipoServico] = useState('');
+  const [equipe, setEquipe] = useState('');
   const [notes, setNotes] = useState('');
   const [photosCount, setPhotosCount] = useState(0);
 
   const startService = async () => {
+    if (!equipe) {
+      alert("Por favor, atribua a equipe ou técnico responsável antes de iniciar.");
+      return;
+    }
+
     const { error } = await supabase
       .from('ordens_servico')
-      .update({ status: 'em_andamento', updated_at: new Date().toISOString() })
+      .update({ 
+        status: 'em_andamento', 
+        data_inicio: new Date().toISOString(),
+        updated_at: new Date().toISOString() 
+      })
       .eq('id', params.id);
     
     if (error) {
@@ -61,6 +74,10 @@ export default function ExecucaoOS({ params }: { params: { id: string } }) {
 
   const finalizeService = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!amount || Number(amount) <= 0 || !tipoServico) {
+      alert("Preencha valor e tipo do serviço antes de finalizar");
+      return;
+    }
     if (!signature) {
       alert("A assinatura do cliente é obrigatória.");
       return;
@@ -73,10 +90,12 @@ export default function ExecucaoOS({ params }: { params: { id: string } }) {
     const { error } = await supabase
       .from('ordens_servico')
       .update({ 
-        status: 'concluido', 
+        status: 'finalizado', 
         valor_final: parseFloat(amount),
+        tipo_servico: tipoServico,
         forma_pagamento: paymentMethod,
         assinatura_url: signature, // Base64 for now
+        data_conclusao: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
       .eq('id', params.id);
@@ -94,9 +113,9 @@ export default function ExecucaoOS({ params }: { params: { id: string } }) {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/ordens" className="text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft size={24} />
-        </Link>
+        <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
+          <ArrowLeft size={24} /> Voltar
+        </button>
         <div>
            <h2 className="text-2xl font-bold text-foreground">OS #{os?.id?.slice(0,4).toUpperCase()} - Execução</h2>
            <p className="text-sm text-muted-foreground">{os?.tipo_servico?.toUpperCase()} - {os?.clientes?.nome}</p>
@@ -127,9 +146,20 @@ export default function ExecucaoOS({ params }: { params: { id: string } }) {
              <p className="text-muted-foreground">{os.descricao || 'Sem descrição detalhada.'}</p>
            </div>
 
+           <div className="space-y-4 mb-6 pt-4 border-t border-border">
+             <div className="space-y-2">
+               <label className="text-sm font-medium">Equipe / Técnico Responsável</label>
+               <Input 
+                 placeholder="Ex: João Silva ou Equipe Alpha" 
+                 value={equipe} 
+                 onChange={(e) => setEquipe(e.target.value)}
+                 required
+               />
+             </div>
+           </div>
 
            <Button size="lg" className="w-full text-lg h-14" onClick={startService}>
-             Iniciar Atendimento
+             Iniciar Serviço
            </Button>
         </div>
       )}
@@ -175,6 +205,20 @@ export default function ExecucaoOS({ params }: { params: { id: string } }) {
                    onChange={(e) => setAmount(e.target.value)} 
                    required
                 />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tipo de Serviço Executado</label>
+                <select 
+                  className="w-full flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  value={tipoServico}
+                  onChange={(e) => setTipoServico(e.target.value)}
+                  required
+                >
+                   <option value="">Selecione...</option>
+                   <option value="manutencao">Manutenção</option>
+                   <option value="instalacao">Instalação</option>
+                </select>
               </div>
 
               <div className="space-y-2">
@@ -234,7 +278,7 @@ export default function ExecucaoOS({ params }: { params: { id: string } }) {
 
               <div className="pt-4 border-t border-border">
                 <Button type="submit" size="lg" className="w-full">
-                   Finalizar Ordem de Serviço
+                   Finalizar Serviço
                 </Button>
                 <p className="text-xs text-center text-muted-foreground mt-3">
                    A próxima manutenção será agendada automaticamente.

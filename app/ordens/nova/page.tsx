@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, CalculatorIcon } from 'lucide-react';
@@ -10,16 +11,20 @@ import { createClient } from '@/lib/supabase/client';
 
 export default function NovaOS() {
   const supabase = createClient();
+  const searchParams = useSearchParams();
+
   const [type, setType] = useState('preventive');
   const [clientes, setClientes] = useState<any[]>([]);
   const [equipamentos, setEquipamentos] = useState<any[]>([]);
+  const [tecnicos, setTecnicos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form State
-  const [clienteId, setClienteId] = useState('');
+  const [clienteId, setClienteId] = useState(searchParams.get('cliente') || '');
   const [equipamentoId, setEquipamentoId] = useState('');
   const [scheduledDate, setScheduledDate] = useState('');
   const [technicianId, setTechnicianId] = useState('');
+  const [equipe, setEquipe] = useState('');
   const [estimatedValue, setEstimatedValue] = useState('');
   const [description, setDescription] = useState('');
 
@@ -31,12 +36,16 @@ export default function NovaOS() {
   const [btuResult, setBtuResult] = useState<number | null>(null);
 
   useEffect(() => {
-    async function loadClientes() {
-      const { data } = await supabase.from('clientes').select('*');
-      if (data) setClientes(data);
+    async function loadData() {
+      const [clientesRes, tecnicosRes] = await Promise.all([
+        supabase.from('clientes').select('*').order('nome'),
+        supabase.from('perfis').select('id, nome, role').in('role', ['tecnico', 'admin', 'gerente']).order('nome'),
+      ]);
+      if (clientesRes.data) setClientes(clientesRes.data);
+      if (tecnicosRes.data) setTecnicos(tecnicosRes.data);
       setLoading(false);
     }
-    loadClientes();
+    loadData();
   }, [supabase]);
 
   useEffect(() => {
@@ -56,7 +65,9 @@ export default function NovaOS() {
     const { error } = await supabase.from('ordens_servico').insert({
       cliente_id: clienteId,
       equipamento_id: equipamentoId || null,
-      tipo_servico: type === 'installation' ? 'instalação' : type,
+      tecnico_id: technicianId || null,
+      equipe: equipe,
+      tipo_servico: type === 'installation' ? 'instalação' : type === 'preventive' ? 'preventiva' : 'corretiva',
       data_agendada: scheduledDate || null,
       valor_estimado: parseFloat(estimatedValue) || 0,
       descricao: description,
@@ -71,7 +82,6 @@ export default function NovaOS() {
     }
   };
 
-
   const handleCalculateBtu = () => {
     const res = calculateBTU(
       parseFloat(area) || 0,
@@ -82,13 +92,14 @@ export default function NovaOS() {
     setBtuResult(res);
   };
 
+  const router = useRouter();
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/ordens" className="text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft size={24} />
-        </Link>
+        <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
+          <ArrowLeft size={24} /> Voltar
+        </button>
         <div>
            <h2 className="text-2xl font-bold text-foreground">Nova Ordem de Serviço</h2>
            <p className="text-sm text-muted-foreground">Cadastre um novo serviço para um cliente.</p>
@@ -110,7 +121,7 @@ export default function NovaOS() {
               >
                 <option value="">{loading ? 'Carregando...' : 'Selecione um cliente...'}</option>
                 {clientes.map(c => (
-                  <option key={c.id} value={c.id}>{c.nome} ({c.telefone})</option>
+                  <option key={c.id} value={c.id}>{c.nome}{c.telefone ? ` (${c.telefone})` : ''}</option>
                 ))}
               </select>
             </div>
@@ -122,60 +133,44 @@ export default function NovaOS() {
                 onChange={(e) => setEquipamentoId(e.target.value)}
                 className="w-full flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <option value="">{clienteId ? 'Selecione o equipamento...' : 'Selecione um cliente primeiro'}</option>
+                <option value="">{clienteId ? (equipamentos.length === 0 ? 'Nenhum equipamento cadastrado' : 'Selecione o equipamento...') : 'Selecione um cliente primeiro'}</option>
                 {equipamentos.map(eq => (
-                  <option key={eq.id} value={eq.id}>{eq.descricao} ({eq.localizacao})</option>
+                  <option key={eq.id} value={eq.id}>{eq.descricao}{eq.localizacao ? ` — ${eq.localizacao}` : ''}</option>
                 ))}
               </select>
             </div>
           </div>
 
-
           <div className="border-t border-border pt-6">
             <label className="text-sm font-medium mb-3 block">Tipo de Serviço</label>
             <div className="grid grid-cols-3 gap-3">
-              <button
-                type="button"
-                onClick={() => setType('installation')}
-                className={`py-3 px-4 border rounded-md text-sm font-medium transition-colors ${
-                  type === 'installation' 
-                    ? 'bg-primary/10 border-primary text-primary' 
-                    : 'border-border bg-background text-muted-foreground hover:bg-secondary'
-                }`}
-              >
-                Instalação
-              </button>
-              <button
-                type="button"
-                onClick={() => setType('preventive')}
-                className={`py-3 px-4 border rounded-md text-sm font-medium transition-colors ${
-                  type === 'preventive' 
-                    ? 'bg-primary/10 border-primary text-primary' 
-                    : 'border-border bg-background text-muted-foreground hover:bg-secondary'
-                }`}
-              >
-                Preventiva
-              </button>
-              <button
-                type="button"
-                onClick={() => setType('corrective')}
-                className={`py-3 px-4 border rounded-md text-sm font-medium transition-colors ${
-                  type === 'corrective' 
-                    ? 'bg-primary/10 border-primary text-primary' 
-                    : 'border-border bg-background text-muted-foreground hover:bg-secondary'
-                }`}
-              >
-                Corretiva
-              </button>
+              {[
+                { value: 'installation', label: 'Instalação' },
+                { value: 'preventive', label: 'Preventiva' },
+                { value: 'corrective', label: 'Corretiva' },
+              ].map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setType(value)}
+                  className={`py-3 px-4 border rounded-md text-sm font-medium transition-colors ${
+                    type === value 
+                      ? 'bg-primary/10 border-primary text-primary' 
+                      : 'border-border bg-background text-muted-foreground hover:bg-secondary'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Calculadora BTU condicional para Instalação */}
+          {/* Calculadora BTU — aparece apenas para Instalação */}
           {type === 'installation' && (
             <div className="bg-secondary/40 border border-border rounded-lg p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium text-primary flex items-center gap-2">
-                  <CalculatorIcon size={18} /> Calculadora de capacidade (BTU)
+                  <CalculatorIcon size={18} /> Calculadora de Capacidade (BTU)
                 </h3>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -201,7 +196,6 @@ export default function NovaOS() {
                     <option value="low">Baixa/Normal</option>
                     <option value="high">Alta (Batendo sol)</option>
                   </select>
-
                 </div>
               </div>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
@@ -235,10 +229,22 @@ export default function NovaOS() {
                  value={technicianId}
                  onChange={(e) => setTechnicianId(e.target.value)}
                >
-                  <option value="">Selecione...</option>
-                  <option value="carlos">Carlos Silva</option>
-                  <option value="joao">João Mateus</option>
+                  <option value="">Selecione um técnico...</option>
+                  {tecnicos.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.nome}{t.role !== 'tecnico' ? ` (${t.role})` : ''}
+                    </option>
+                  ))}
                </select>
+             </div>
+             <div className="space-y-2 md:col-span-2">
+               <label className="text-sm font-medium">Equipe (Team)</label>
+               <Input 
+                 placeholder="Ex: Equipe Alfa, Tercerizada..." 
+                 value={equipe}
+                 onChange={(e) => setEquipe(e.target.value)}
+                 required
+               />
              </div>
           </div>
 
@@ -263,10 +269,9 @@ export default function NovaOS() {
             />
           </div>
 
-
           <div className="flex items-center justify-end gap-3 pt-6 border-t border-border">
-            <Button variant="ghost" type="button" asChild>
-              <Link href="/ordens">Cancelar</Link>
+            <Button variant="ghost" type="button" onClick={() => router.back()}>
+              Cancelar
             </Button>
             <Button type="submit">
                Salvar e Agendar

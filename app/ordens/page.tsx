@@ -15,10 +15,26 @@ export default function OrdensList() {
 
   useEffect(() => {
     async function fetchOrdens() {
-      const { data, error } = await supabase
+      const { data: authData } = await supabase.auth.getUser();
+      let userId = authData.user?.id;
+      let isTecnico = false;
+
+      if (userId) {
+        const { data: perfil } = await supabase.from('perfis').select('role').eq('id', userId).single();
+        isTecnico = perfil?.role === 'tecnico' || perfil?.role === 'funcionário' || perfil?.role === 'funcionario';
+      }
+
+      let query = supabase
         .from('ordens_servico')
         .select('*, clientes(nome)')
         .order('created_at', { ascending: false });
+
+      if (isTecnico && userId) {
+        // Regra de Negócio: Técnico só vê o que é dele
+        query = query.eq('tecnico_id', userId);
+      }
+
+      const { data, error } = await query;
       
       if (data) setOrdens(data);
       setLoading(false);
@@ -65,6 +81,7 @@ export default function OrdensList() {
                 <th className="px-4 py-3 font-medium text-muted-foreground text-sm">ID</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Cliente</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Serviço</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Equipe</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Status</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Data</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground text-sm">Valor</th>
@@ -73,13 +90,13 @@ export default function OrdensList() {
             <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground animate-pulse">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground animate-pulse">
                     Carregando ordens de serviço...
                   </td>
                 </tr>
               ) : ordens.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     Nenhuma ordem de serviço encontrada.
                   </td>
                 </tr>
@@ -89,6 +106,7 @@ export default function OrdensList() {
                     <td className="px-4 py-4 text-sm font-medium">#{os.id.slice(0, 4).toUpperCase()}</td>
                     <td className="px-4 py-4 text-sm">{os.clientes?.nome || 'Cliente não encontrado'}</td>
                     <td className="px-4 py-4 text-sm text-muted-foreground capitalize">{os.tipo_servico || 'N/A'}</td>
+                    <td className="px-4 py-4 text-sm text-muted-foreground truncate max-w-[120px]" title={os.equipe || 'N/A'}>{os.equipe || 'N/A'}</td>
                     <td className="px-4 py-4 text-sm">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
                         os.status === 'concluido' ? 'bg-green-500/10 text-green-500' :
